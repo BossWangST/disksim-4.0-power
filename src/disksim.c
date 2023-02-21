@@ -116,6 +116,9 @@
 #include <sys/mman.h>
 #endif
 
+/*added by lei tian for the power support, 2008/11/21*/
+#include "disksim_power.h"
+/*end added*/
 
 disksim_t *disksim = NULL;
 
@@ -764,8 +767,8 @@ static void prime_simulation ()
 
 void disksim_simulate_event (int num)
 {
-  event *curr;
-  
+  event *curr;  
+
   if ((curr = getnextevent()) == NULL) {
     disksim_simstop ();
   } 
@@ -784,7 +787,13 @@ void disksim_simulate_event (int num)
     }
 
     simtime = curr->time;
-    
+
+
+//	fprintf (outputfile, "%f: next event to handle: type %d, temp %d\n", simtime,
+//		 curr->type, curr->temp);
+//	fflush (outputfile);
+
+	
     if (curr->type == INTR_EVENT) 
     {
       intr_acknowledge (curr);
@@ -807,6 +816,18 @@ void disksim_simulate_event (int num)
     {
       io_internal_event ((ioreq_event *)curr);
     } 
+
+/*added by lei tian for power support, 2008/11/21*/
+    else if ((curr->type >= POWER_MIN_EVENT) 
+	     && (curr->type <= POWER_MAX_EVENT)) 
+    {
+      power_internal_event ((power_event *)curr);
+    }
+/*end added*/
+
+
+
+	
     else if (curr->type == CHECKPOINT) 
     {
       if (disksim->checkpoint_interval) {
@@ -908,7 +929,7 @@ void disksim_setup_disksim (int argc, char **argv)
   setEndian();
   
   StaticAssert (sizeof(intchar) == 4);
-  if (argc < 6) {
+  if (argc < 7/*6 by lei tian*/) {
     fprintf(stderr,"Usage: %s paramfile outfile format iotrace synthgen?\n", argv[0]);
     exit(1);
   }
@@ -918,7 +939,7 @@ void disksim_setup_disksim (int argc, char **argv)
 	   argv[4], argv[5]);
 #endif
 
-  if ((argc - 6) % 3) {
+  if ((argc - 7/*6 by lei tian*/) % 3) {
     fprintf(stderr, "Parameter file overrides must be 3-tuples\n");
     exit(1);
    } 
@@ -951,8 +972,16 @@ void disksim_setup_disksim (int argc, char **argv)
 
   fflush(outputfile); 
 
-  disksim->overrides = argv + 6;
-  disksim->overrides_len = argc - 6;
+
+/*added by lei tian for power support, 2008/11/21*/
+	power_read_params(argv[6]);
+	fprintf(outputfile, "reading power params complete\n");
+	fflush(outputfile);
+/*end added*/
+
+
+  disksim->overrides = argv + 7/*6 by lei tian*/;
+  disksim->overrides_len = argc - 7/*6 by lei tian*/;
 
    // asserts go to stderr by default
   ddbg_assert_setfile(stderr);
@@ -1104,6 +1133,10 @@ void disksim_cleanup_and_printstats ()
 {
   disksim_printstats();
   disksim_cleanup();
+
+/*added by lei tian for the power support, 2008/11/21*/
+	power_cleanup();
+/*end added*/  
 }
 
 

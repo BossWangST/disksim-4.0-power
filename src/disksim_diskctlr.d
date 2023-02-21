@@ -43,4 +43,4 @@ disksim_diskctlr.o: disksim_diskctlr.c /usr/include/stdc-predef.h \
  disksim_disk.h disksim_ioqueue.h ../diskmodel/include/diskmodel/dm.h \
  ../diskmodel/include/diskmodel/dm_types.h /usr/include/inttypes.h \
  /usr/lib/gcc/i686-linux-gnu/4.8/include/stdint.h /usr/include/stdint.h \
- /usr/include/i386-linux-gnu/bits/wchar.h inst.h
+ /usr/include/i386-linux-gnu/bits/wchar.h inst.h disksim_power.h

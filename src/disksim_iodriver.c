@@ -641,9 +641,9 @@ fprintf (outputfile, "%f, Responding to device - cause = %d, blkno %d\n", simtim
 
 void iodriver_interrupt_complete (int iodriverno, intr_event *intrp)
 {
-/*
-fprintf (outputfile, "%f, Interrupt completing - cause = %d, blkno %d\n", simtime, ((ioreq_event *) intrp->infoptr)->cause, ((ioreq_event *) intrp->infoptr)->blkno);
-*/
+
+//fprintf (outputfile, "%f, Interrupt completing - cause = %d, blkno %d\n", simtime, ((ioreq_event *) intrp->infoptr)->cause, ((ioreq_event *) intrp->infoptr)->blkno);
+
    if (iodrivers[iodriverno]->type == STANDALONE) {
       if (((ioreq_event *) intrp->infoptr)->cause == COMPLETION) {
          iodriver_access_complete(iodriverno, intrp);

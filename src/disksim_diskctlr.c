@@ -108,6 +108,10 @@
 
 #include "inst.h"
 
+/*added  by lei tian for the power support, 2008/11/21*/
+#include "disksim_power.h"
+/*end added*/
+
 // move these protos, etc, to "disk_private.h" or something!
 static void 
 disk_buffer_sector_done (disk *currdisk, 
@@ -474,8 +478,15 @@ static void disk_request_complete(disk *currdisk,
 
     disk_interferestats(currdisk, tmpioreq);
     /* GROK: this would seem to leak (or worse) for concatenating schedulers */
+	
+#if 1  /*added by lei tian for the power support, 2008/11/21*/	
+    ddbg_assert2(ioqueue_physical_access_done_power(currdisk->queue,tmpioreq),
+	       "ioreq_event not found");
+#else
     ddbg_assert2(ioqueue_physical_access_done(currdisk->queue,tmpioreq),
 	       "ioreq_event not found");
+#endif
+
 
     currdisk->currentbus = 
       currdisk->currenthda = 
@@ -502,8 +513,13 @@ static void disk_request_complete(disk *currdisk,
 	
 	disk_interferestats(currdisk, tmpioreq);
       }
+	  
+#if 1  /*added by lei tian for the power support, 2008/11/21*/
+      evtfound = (int)ioqueue_physical_access_done_power(currdisk->queue,tmpioreq);
+#else
+	  evtfound = (int)ioqueue_physical_access_done(currdisk->queue,tmpioreq);
+#endif
 
-      evtfound = (int)ioqueue_physical_access_done(currdisk->queue,tmpioreq);
 
       ddbg_assert2(evtfound != 0, "ioreq_event not found");
 
@@ -542,6 +558,12 @@ static void disk_request_complete(disk *currdisk,
       }
   }
 
+/*added by lei tian for the power support, 2008/11/21*/
+//	power_set_idle(currdisk->devno);
+/*end added*/
+
+
+
   curr->time = simtime;
   curr->type = IO_INTERRUPT_ARRIVE;
   curr->cause = COMPLETION;
@@ -560,6 +582,7 @@ static void disk_request_complete(disk *currdisk,
 
   disk_send_event_up_path(curr, (delay * currdisk->timescale));
   currdisk->outstate = DISK_WAIT_FOR_CONTROLLER;
+  
 }
 
 
@@ -2408,6 +2431,17 @@ disk_request_arrive(ioreq_event *curr)
   }
   /* end of debugging stuff */
 
+#if 0
+  fprintf(outputfile, "%12.6f  %8p	Entering disk_request_arrive\n", 
+	  simtime, new_diskreq);
+  fprintf(outputfile, " 					   disk = %d, "
+	  "blkno = %d, bcount = %d, read = %d\n",
+	  curr->devno, curr->blkno, curr->bcount, (READ & curr->flags));
+  fflush(outputfile);
+#endif
+  
+
+
 
   currdisk->effectivebus = new_diskreq;
 
@@ -2422,7 +2456,11 @@ disk_request_arrive(ioreq_event *curr)
    * detect LIMITED_FASTWRITE possibilities.  
    */
 
+#if 1  /*added by lei tian for the power support, 2008/11/21*/
+  ioqueue_add_new_request_power(currdisk->queue, curr);
+#else
   ioqueue_add_new_request(currdisk->queue, curr);
+#endif
 
   seg = disk_buffer_select_segment(currdisk, new_diskreq,TRUE);
 
@@ -2970,6 +3008,19 @@ void disk_event_arrive (ioreq_event *curr)
 
   disksim_inst_enter();
 
+#if 0
+/*added by lei tian for power support, 2008/11/21*/
+  double old_time = simtime;
+
+  if (power_waitfor_spinup(curr) != 0 ) {
+		simtime = old_time;
+		return;
+	}  
+/*added end*/
+#endif
+
+//	fprintf(outputfile, "disk_event_arrive: req time: %f, type: %d, devno: %d\n", 
+//		curr->time, curr->type, curr->devno);
 
   switch (curr->type) {
 
@@ -3221,9 +3272,16 @@ disk_buffer_request_complete(disk *currdisk, diskreq *currdiskreq)
     if(!reading) {
       tmpioreq = currdiskreq->ioreqlist;
       while (tmpioreq) {
+
+#if 1  /*added by lei tian for the power support, 2008/11/21*/		
+	ddbg_assert2(ioqueue_physical_access_done_power(currdisk->queue,tmpioreq),
+		   "disk_buffer_request_complete:  ioreq_event "
+		   "not found by ioqueue_physical_access_done_power call");
+#else
 	ddbg_assert2(ioqueue_physical_access_done(currdisk->queue,tmpioreq),
 		   "disk_buffer_request_complete:  ioreq_event "
 		   "not found by ioqueue_physical_access_done call");
+#endif
 
 	tmpioreq = tmpioreq->next;
       }

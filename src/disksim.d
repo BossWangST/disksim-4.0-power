@@ -54,4 +54,4 @@ disksim.o: disksim.c /usr/include/stdc-predef.h disksim_global.h \
  /usr/include/i386-linux-gnu/bits/stat.h \
  /usr/include/i386-linux-gnu/sys/mman.h \
  /usr/include/i386-linux-gnu/bits/mman.h \
- /usr/include/i386-linux-gnu/bits/mman-linux.h
+ /usr/include/i386-linux-gnu/bits/mman-linux.h disksim_power.h

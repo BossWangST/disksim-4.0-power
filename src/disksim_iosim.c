@@ -103,9 +103,9 @@
 
 #include "modules/modules.h"
 
-
-
-
+/*added by lei tian for the power support, 2008/11/21*/
+#include "disksim_power.h"
+/*end added*/
 
 void iosim_initialize_iosim_info (void)
 {
@@ -211,9 +211,12 @@ void io_interrupt_complete (ioreq_event *intrp)
 void io_internal_event(ioreq_event *curr)
 {
    ASSERT(curr != NULL);
-/*
-fprintf (outputfile, "%f: io_internal_event entered with event type %d, %f\n", curr->time, curr->type, simtime);
-*/
+
+double old_time = simtime;
+
+
+//fprintf (outputfile, "%f: io_internal_event entered with event type %d, %f\n", curr->time, curr->type, simtime);
+
    switch (curr->type) {
    case IO_REQUEST_ARRIVE:
      iodriver_request(0, curr);
@@ -258,6 +261,15 @@ fprintf (outputfile, "%f: io_internal_event entered with event type %d, %f\n", c
    case MEMS_BUS_INITIATE:
    case MEMS_BUS_TRANSFER:
    case MEMS_BUS_UPDATE:
+
+	 /*added by lei tian for power support, 2008/11/21*/	 
+	   if (power_waitfor_spinup(curr) != 0 ) {
+			 simtime = old_time;
+			 return;
+		 }	
+	 /*added end*/
+
+	
      device_event_arrive(curr);
      break;
 
@@ -686,6 +698,12 @@ void io_printstats()
    device_printstats();
    controller_printstats();
    bus_printstats();
+
+/*added by lei tian for the power support, 2008/11/21*/
+	power_stat_show();
+/*end added*/
+
+   
 }
 
 
@@ -702,6 +720,11 @@ void io_setcallbacks ()
 
 void io_initialize (int standalone)
 {
+	/*added by lei tian for power support, 2008/11/21*/
+		power_initialization();
+	/*end added*/
+
+
    if (disksim->iosim_info == NULL) {
       iosim_initialize_iosim_info ();
    }
@@ -714,6 +737,7 @@ void io_initialize (int standalone)
    bus_initialize();
    controller_initialize();
    iodriver_initialize(standalone);
+ 
 }
 
 

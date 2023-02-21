@@ -137,8 +137,10 @@ void		ioqueue_set_idlework_function (struct ioq *queue, void (**idlework)(void *
 void		ioqueue_set_enablement_function (struct ioq *queue, int (**enablement)(ioreq_event *));
 void		ioqueue_reset_idledetecter (struct ioq *queue, int timechange);
 void		ioqueue_print_contents (struct ioq *queue);
-
-
+/*added by lei tian for the rebuild support, 2008/11/21*/
+double		ioqueue_add_new_request_power (struct ioq *queue, ioreq_event *new);
+ioreq_event *	ioqueue_physical_access_done_power (struct ioq *queue, ioreq_event *curr);
+/*end added*/
 /* Request scheduling algorithms */
 
 #define MINSCHED	 1

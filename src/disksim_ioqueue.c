@@ -105,6 +105,10 @@
 #include "modules/modules.h"
 
 
+/*added by lei tian for the power support, 2008/11/21*/
+#include "disksim_power.h"
+/*end added*/
+
 // schlos - i'm going to have to modify this to account for batched queues
 #define READY_TO_GO(iobufptr,queue) ( \
                                      ((iobufptr)->state == WAITING) && \
@@ -3183,6 +3187,7 @@ fprintf (outputfile, "Exiting ioqueue_get_next_request: %d\n", ((tmp) ? tmp->blk
 }
 
 
+
 double ioqueue_add_new_request (ioqueue *queue, ioreq_event *new)
 {
    iobuf *tmp;
@@ -3195,6 +3200,111 @@ fprintf (outputfile, "Entering ioqueue_add_new_request: %d\n", new->blkno);
 */
    new->time = simtime;
    ioqueue_update_arrival_stats(queue, new);
+   tmp = (iobuf *) getfromextraq();
+   StaticAssert (sizeof(iobuf) <= sizeof(event));
+   tmp->starttime = -1.0;
+   tmp->state = WAITING;
+   tmp->next = NULL;
+   tmp->prev = NULL;
+   tmp->totalsize = new->bcount;
+   tmp->devno = new->devno;
+   tmp->blkno = new->blkno;
+   tmp->flags = new->flags;
+   tmp->iolist = new;
+   new->next = NULL;
+   tmp->iob_un.pend.waittime = 0;
+   tmp->iob_un.pend.concat = NULL;
+   tmp->reqcnt = 1;
+   tmp->opid = new->opid;
+   tmp->batchno = new->batchno;
+   tmp->batch_list = NULL;
+   if (tmp->batchno == -1) {
+     tmp->batch_complete = TRUE;
+   } else {
+     tmp->batch_complete = new->batch_complete;
+   }
+   switch(queue->pri_scheme) {
+      case ALLEQUAL:
+         if ((queue->base.sched_alg == ELEVATOR_LBN) || 
+             (queue->base.sched_alg == CYCLE_LBN)    || 
+             (queue->base.sched_alg == SSTF_LBN)     || 
+             (queue->base.sched_alg == VSCAN_LBN)) {
+           ioqueue_get_cylinder_mapping(queue, tmp, tmp->blkno, &tmp->cylinder, &tmp->surface, MAP_NONE);
+         } else {
+           ioqueue_get_cylinder_mapping(queue, tmp, tmp->blkno, &tmp->cylinder, &tmp->surface, -1);
+         }
+	 ioqueue_insert_new_request(&queue->base, tmp);
+	 break;
+      case TWOQUEUE:
+         if (new->flags & (TIME_CRITICAL|TIME_LIMITED)) {
+            if ((queue->priority.sched_alg == ELEVATOR_LBN) || 
+                (queue->priority.sched_alg == CYCLE_LBN)    || 
+                (queue->priority.sched_alg == SSTF_LBN)     || 
+                (queue->priority.sched_alg == VSCAN_LBN)) {
+              ioqueue_get_cylinder_mapping(queue, tmp, tmp->blkno, &tmp->cylinder, &tmp->surface, MAP_NONE);
+            } else {
+              ioqueue_get_cylinder_mapping(queue, tmp, tmp->blkno, &tmp->cylinder, &tmp->surface, -1);
+            }
+            ioqueue_insert_new_request(&queue->priority, tmp);
+         } else {
+            if ((queue->base.sched_alg == ELEVATOR_LBN) || 
+                (queue->base.sched_alg == CYCLE_LBN)    || 
+                (queue->base.sched_alg == SSTF_LBN)     || 
+                (queue->base.sched_alg == VSCAN_LBN)) {
+              ioqueue_get_cylinder_mapping(queue, tmp, tmp->blkno, &tmp->cylinder, &tmp->surface, MAP_NONE);
+            } else {
+              ioqueue_get_cylinder_mapping(queue, tmp, tmp->blkno, &tmp->cylinder, &tmp->surface, -1);
+            }
+	    ioqueue_insert_new_request(&queue->base, tmp);
+         }
+	 break;
+      default:
+         fprintf(stderr, "Unknown priority scheme being employed at ioqueue_add_new_request\n");
+	 exit(1);
+   }
+   listlen = queue->base.listlen + queue->timeout.listlen + queue->priority.listlen;
+   qlen = listlen - (queue->base.numoutstanding + queue->timeout.numoutstanding + queue->priority.numoutstanding);
+   readlen = queue->base.readlen + queue->timeout.readlen + queue->priority.readlen;
+   queue->maxlistlen = max(listlen, queue->maxlistlen);
+   queue->maxqlen = max(qlen, queue->maxqlen);
+   queue->maxreadlen = max(readlen, queue->maxreadlen);
+   queue->maxwritelen = max((listlen - readlen), queue->maxwritelen);
+   if (listlen == 1) {
+      stat_update(&queue->idlestats, (simtime - queue->idlestart));
+   }
+   queue->idlestart = simtime;
+   if (queue->idledetect) {
+      if (!(removefromintq((event *)queue->idledetect))) {
+	 fprintf(stderr, "existing idledetect event not on intq in ioqueue_add_new_request\n");
+	 exit(1);
+      }
+      addtoextraq((event *)queue->idledetect);
+      queue->idledetect = NULL;
+   }
+/*
+fprintf (outputfile, "Exiting ioqueue_add_new_request\n");
+*/
+   return(0.0);
+}
+
+/*added by lei tian for the power support, 2008/11/21*/
+double ioqueue_add_new_request_power (ioqueue *queue, ioreq_event *new)
+{
+   iobuf *tmp;
+   int listlen;
+   int qlen;
+   int readlen;
+
+/*
+fprintf (outputfile, "Entering ioqueue_add_new_request: %d\n", new->blkno);
+*/
+   new->time = simtime;
+   ioqueue_update_arrival_stats(queue, new);
+
+/*added by lei tian for the power support, 2008/11/21*/
+   power_manage_spindown(queue->idlestart, new);
+/*end added*/
+
    tmp = (iobuf *) getfromextraq();
    StaticAssert (sizeof(iobuf) <= sizeof(event));
    tmp->starttime = -1.0;
@@ -3530,6 +3640,52 @@ static void ioqueue_clobber_overlaps_subqueue (subqueue *queue, ioreq_event *ret
 }
 
 
+ioreq_event * ioqueue_physical_access_done_power (ioqueue *queue, ioreq_event *curr)
+{
+   ioreq_event *ret;
+/*
+fprintf(outputfile, "Entering ioqueue_physical_access_done: %d, devno %d\n", curr->blkno, curr->devno);
+ioqueue_print_contents(queue);
+*/
+   queue->idlestart = simtime;
+
+   power_set_idle(curr->devno);
+
+   if ((queue->pri_scheme != ALLEQUAL) && ((curr->flags & (TIME_CRITICAL|TIME_LIMITED)) || ((queue->to_scheme != NOTIMEOUT) && (curr->flags & TIMED_OUT)))) {
+/*
+fprintf(outputfile, "Checking the priority queue\n");
+*/
+      ret = ioqueue_remove_completed_request(&queue->priority, curr);
+   } else if ((queue->to_scheme != NOTIMEOUT) && (curr->flags & (TIMED_OUT|HALF_OUT))) {
+/*
+fprintf(outputfile, "Checking the timeout queue\n");
+*/
+      ret = ioqueue_remove_completed_request(&queue->timeout, curr);
+   } else {
+/*
+fprintf(outputfile, "Checking the base queue\n");
+*/
+      ret = ioqueue_remove_completed_request(&queue->base, curr);
+   }
+   ASSERT(ret != NULL);
+   if (queue->comboverlaps) {
+      double arrtimemax = (queue->comboverlaps == 1) ? simtime : ret->time;
+      ioqueue_clobber_overlaps_subqueue(&queue->priority, ret, arrtimemax);
+      ioqueue_clobber_overlaps_subqueue(&queue->timeout, ret, arrtimemax);
+      ioqueue_clobber_overlaps_subqueue(&queue->base, ret, arrtimemax);
+   }
+   if (queue->idlework) {
+      ioqueue_reset_idledetecter(queue, 1);
+   }
+
+   // fprintf (outputfile, "Exiting ioqueue_physical_access_done: %f\n", disksim->lastphystime);
+
+   return(ret);
+}
+
+
+
+/*added by lei tian for the power support, 2008/11/21*/
 ioreq_event * ioqueue_physical_access_done (ioqueue *queue, ioreq_event *curr)
 {
    ioreq_event *ret;

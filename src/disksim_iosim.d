@@ -51,4 +51,5 @@ disksim_iosim.o: disksim_iosim.c /usr/include/stdc-predef.h \
  modules/disksim_logorg_param.h modules/disksim_pf_param.h \
  modules/disksim_pf_stats_param.h modules/disksim_simpledisk_param.h \
  modules/disksim_stats_param.h modules/disksim_syncset_param.h \
- modules/disksim_synthgen_param.h modules/disksim_synthio_param.h
+ modules/disksim_synthgen_param.h modules/disksim_synthio_param.h \
+ disksim_power.h

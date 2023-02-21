@@ -33,7 +33,7 @@ FLEX = flex
 include .paths
 
 LDFLAGS = -L. -ldisksim $(DISKMODEL_LDFLAGS) $(MEMSMODEL_LDFLAGS) \
-                            $(LIBPARAM_LDFLAGS) $(LIBDDBG_LDFLAGS) -lm
+                            $(LIBPARAM_LDFLAGS) $(LIBDDBG_LDFLAGS)  -lm
 
 HP_FAST_OFLAGS = +O4
 NCR_FAST_OFLAGS = -O4 -Hoff=BEHAVED 
@@ -81,7 +81,7 @@ distclean: realclean
 modules: 
 	$(MAKE) -C modules
 	mkdir -p ../include/disksim/modules
-	cp -pR modules/*.h ../include/disksim/modules
+	cp -fR modules/*.h ../include/disksim/modules
 	cp disksim_interface.h ../include
 
 modules/*.h modules/*.c:
@@ -98,7 +98,7 @@ DISKSIM_SRC = disksim.c disksim_intr.c disksim_pfsim.c \
 	disksim_statload.c disksim_stat.c disksim_rand48.c disksim_malloc.c \
 	disksim_cache.c disksim_cachemem.c disksim_cachedev.c \
 	disksim_simpledisk.c disksim_device.c \
-	disksim_loadparams.c \
+	disksim_loadparams.c disksim_power.c \
 	raw_layout.c
 
 DISKSIM_OBJ = $(DISKSIM_SRC:.c=.o) 
@@ -113,7 +113,7 @@ fbdisksim :
 	$(MAKE) FREEBLOCKS_OFLAGS=-DFREEBLOCKS all
 
 rms : rms.c
-	$(CC) $< -lm -o $@
+	$(CC) $< -o $@ -lm
 
 hplcomb : hplcomb.c
 	$(CC) $< -o $@

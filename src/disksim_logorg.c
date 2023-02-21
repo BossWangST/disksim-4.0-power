@@ -104,6 +104,11 @@
 #include "disksim_logorg.h"
 #include "modules/modules.h"
 
+/*added  by lei tian for the power support, 2008/11/21*/
+#include "disksim_power.h"
+/*end added*/
+
+
 #define MAX_QUEUE_LENGTH 10000
 
 
@@ -1095,6 +1100,11 @@ void logorg_resetstats (logorg **logorgs, int numlogorgs)
       stat_reset(&logorgs[i]->stat.sizestats);
       stat_reset(&logorgs[i]->stat.readsizestats);
       stat_reset(&logorgs[i]->stat.writesizestats);
+	  
+/*added by lei tian for power support, 2008/11/21*/
+	  power_stat_reset();
+/*end added*/
+	  
       stat_reset(&logorgs[i]->stat.idlestats);
       stat_reset(&logorgs[i]->stat.resptimestats);
    }
