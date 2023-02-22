@@ -29,8 +29,6 @@
  *
  */
 
-
-
 /*
  * DiskSim Storage Subsystem Simulation Environment (Version 2.0)
  * Revision Authors: Greg Ganger
@@ -98,7 +96,6 @@
  * holders.
  */
 
-
 /*
  *
  * This file offers a suggested interface between disksim and a full
@@ -132,8 +129,6 @@
  *
  */
 
-
-
 #include "disksim_global.h"
 #include "disksim_ioface.h"
 #include "disksim_interface.h"
@@ -163,63 +158,63 @@ struct disksim_interface {
  * system-level * simulator's request structure is a reasonable use of
  * "curr->buf".)
  */
-static event * 
-disksim_interface_io_done_notify (ioreq_event *curr, void *ctx)
+static event *
+disksim_interface_io_done_notify(ioreq_event *curr, void *ctx)
 {
   struct disksim_interface *iface = (struct disksim_interface *)ctx;
-  struct disksim_request *req = (struct disksim_request *) curr->buf;
+  struct disksim_request *req = (struct disksim_request *)curr->buf;
 
   // wrong ctx -- should be the per-req one ... how to demux?
   iface->complete_fn(simtime, req, iface->ctx);
   return 0;
 }
 
-
 static int
-disksim_interface_initialize_latency (struct disksim_interface *iface,
-				      const char *pfile, 
-				      const char *ofile, 
-				      int latency_weight, 
-				      char *paramval, 
-				      char *paramname, 
-				      int synthio, 
-				      char *sched_alg,
-				      int over_argc,
-				      char **over_argv)
+disksim_interface_initialize_latency(struct disksim_interface *iface,
+                                     const char *pfile,
+                                     const char *power_cfg,
+                                     const char *ofile,
+                                     int latency_weight,
+                                     char *paramval,
+                                     char *paramname,
+                                     int synthio,
+                                     char *sched_alg,
+                                     int over_argc,
+                                     char **over_argv)
 {
   char **argv;
-  int argc = 6;
+  int argc = 7; // modified by Wang Yuhao at 2023-2-21 for power config
   int i = argc;
 
   argc += over_argc;
-  
+
   // fprintf (stder, "disksim_initialize\n");
-  
+
   disksim_initialize_disksim_structure(iface->disksim);
 
-  if(latency_weight) {
+  if (latency_weight)
+  {
     argc += 12;
   }
 
   argv = calloc(argc, sizeof(char *));
 
-  if(latency_weight){
+  if (latency_weight)
+  {
     //     iodriver_param_override(paramname,paramval,-1,-1);
-    
-    
+
     argv[i++] = "driver*";
     argv[i++] = paramname;
     argv[i++] = paramval;
 
-
     /* note: these parameter names must match those from
      * modules/disksim_ioqueue_param.h, etc 
      */
-    
+
     argv[i++] = "driver*";
     argv[i++] = "Scheduler:Scheduling policy";
     argv[i++] = sched_alg;
-    
+
     argv[i++] = "driver*";
     argv[i++] = "Scheduler:Scheduling priority scheme";
     argv[i++] = sched_alg;
@@ -232,39 +227,44 @@ disksim_interface_initialize_latency (struct disksim_interface *iface,
   memcpy(argv + i, over_argv, over_argc * sizeof(char *));
 
   argv[0] = "disksim";
-  argv[1] = (char *) pfile;
-  argv[2] = (char *) ofile;
+  argv[1] = (char *)pfile;
+  argv[2] = (char *)ofile;
   argv[3] = "external";
   argv[4] = "0";
-  if(synthio == 1){
+  if (synthio == 1)
+  {
     argv[5] = "1";
-  }else{
+  }
+  else
+  {
     argv[5] = "0";
   }
-  disksim_setup_disksim (argc, argv);
-  
+  argv[6] = (char *)power_cfg;
+  disksim_setup_disksim(argc, argv);
+
   /* Note that this call must be redone anytime a disksim checkpoint is 
    * restored -- this prevents old function addresses from polluting    
    * the restored execution...                                          
    */
   disksim_set_external_io_done_notify(disksim_interface_io_done_notify);
-  
+
   // fprintf (stder, "disksim_initialize done\n");
-  
+
   return 0;
 }
 
 /* called once at simulation initialization time */
 
-struct disksim_interface * 
-disksim_interface_initialize (const char *pfile, 
-			      const char *ofile,
-			      disksim_interface_complete_t comp,
-			      disksim_interface_sched_t sched,
-			      disksim_interface_desched_t desched,
-			      void *ctx,
-			      int argc,
-			      char **argv)
+struct disksim_interface *
+disksim_interface_initialize(const char *pfile,
+                             const char *ofile,
+                             const char *power_config,
+                             disksim_interface_complete_t comp,
+                             disksim_interface_sched_t sched,
+                             disksim_interface_desched_t desched,
+                             void *ctx,
+                             int argc,
+                             char **argv)
 {
   struct disksim_interface *iface = calloc(1, sizeof(struct disksim_interface));
   ddbg_assert(iface != 0);
@@ -277,82 +277,76 @@ disksim_interface_initialize (const char *pfile,
 
   disksim = iface->disksim;
 
-
-  disksim_interface_initialize_latency(iface, 
-				       pfile, 
-				       ofile, 
-				       0,         // latency_weight
-				       NULL,      // paramval
-				       NULL,      // paramname
-				       0,         // synthio
-				       NULL,      // sched_alg
-				       argc,
-				       argv);
+  disksim_interface_initialize_latency(iface,
+                                       pfile,
+                                       power_config,
+                                       ofile,
+                                       0,    // latency_weight
+                                       NULL, // paramval
+                                       NULL, // paramname
+                                       0,    // synthio
+                                       NULL, // sched_alg
+                                       argc,
+                                       argv);
 
   disksim->notify_ctx = iface;
 
   return iface;
 }
 
-
-
 /* called once at simulation shutdown time */
 
-void 
-disksim_interface_shutdown (struct disksim_interface *iface,
-			    double syssimtime)
+void disksim_interface_shutdown(struct disksim_interface *iface,
+                                double syssimtime)
 {
-   double curtime = syssimtime;
+  double curtime = syssimtime;
 
-   disksim = iface->disksim;
+  disksim = iface->disksim;
 
-   // fprintf (stderr, "disksim_shutdown\n");
+  // fprintf (stderr, "disksim_shutdown\n");
 
-   if ((curtime + 0.0001) < simtime) {
-      fprintf (stderr, "external time is ahead of disksim time: %f > %f\n", curtime, simtime);
-      exit(1);
-   }
+  if ((curtime + 0.0001) < simtime)
+  {
+    fprintf(stderr, "external time is ahead of disksim time: %f > %f\n", curtime, simtime);
+    exit(1);
+  }
 
-   simtime = curtime;
-   disksim_printstats ();
+  simtime = curtime;
+  disksim_printstats();
 
-   // fprintf (stderr, "disksim_shutdown done\n");
+  // fprintf (stderr, "disksim_shutdown done\n");
 }
-
 
 /* Prints the current disksim statistics.  This call does not reset the    */
 /* statistics, so the simulation can continue to run and calculate running */
 /* totals.  "syssimtime" should be the current simulated time of the       */
 /* system-level simulation.                                                */
 
-void 
-disksim_interface_dump_stats (struct disksim_interface *iface,
-			      double syssimtime)
+void disksim_interface_dump_stats(struct disksim_interface *iface,
+                                  double syssimtime)
 {
-   double curtime = syssimtime;
+  double curtime = syssimtime;
 
-   disksim = iface->disksim;
+  disksim = iface->disksim;
 
-   // fprintf (stderr, "disksim_dump_stats\n");
+  // fprintf (stderr, "disksim_dump_stats\n");
 
-   if ((disksim->intq) && (disksim->intq->time < curtime) && ((disksim->intq->time + 0.0001) >= curtime)) {
-      curtime = disksim->intq->time;
-   }
-   if (((curtime + 0.0001) < simtime) 
-       || ((disksim->intq) 
-	   && (disksim->intq->time < curtime))) 
-   {
-     fprintf (stderr, "external time is mismatched with disksim time: %f vs. %f (%f)\n", curtime, simtime, ((disksim->intq) ? disksim->intq->time : 0.0));
-     exit (1);
-   }
+  if ((disksim->intq) && (disksim->intq->time < curtime) && ((disksim->intq->time + 0.0001) >= curtime))
+  {
+    curtime = disksim->intq->time;
+  }
+  if (((curtime + 0.0001) < simtime) || ((disksim->intq) && (disksim->intq->time < curtime)))
+  {
+    fprintf(stderr, "external time is mismatched with disksim time: %f vs. %f (%f)\n", curtime, simtime, ((disksim->intq) ? disksim->intq->time : 0.0));
+    exit(1);
+  }
 
-   simtime = curtime;
-   disksim_cleanstats();
-   disksim_printstats();
+  simtime = curtime;
+  disksim_cleanstats();
+  disksim_printstats();
 
-   // fprintf (stderr, "disksim_dump_stats done\n");
+  // fprintf (stderr, "disksim_dump_stats done\n");
 }
-
 
 static int event_count = 0;
 
@@ -360,57 +354,55 @@ static int event_count = 0;
 /* as a slave of a system-level simulation.  "syssimtime" should be the    */
 /* current simulated time of the system-level simulation.                  */
 
-void 
-disksim_interface_internal_event (struct disksim_interface *iface, 
-				  double syssimtime,
-				  void *junk)
+void disksim_interface_internal_event(struct disksim_interface *iface,
+                                      double syssimtime,
+                                      void *junk)
 {
-   double curtime = syssimtime;
-   disksim = iface->disksim;
+  double curtime = syssimtime;
+  disksim = iface->disksim;
 
-   // fprintf (stderr, "disksim_internal_event\n");
+  // fprintf (stderr, "disksim_internal_event\n");
 
-   /* if next event time is less than now, error.  Also, if no event is  */
-   /* ready to be handled, then this is a spurious callback -- it should */
-   /* not be possible with the descheduling below (allow it if it is not */
-   /* possible to deschedule.                                            */
+  /* if next event time is less than now, error.  Also, if no event is  */
+  /* ready to be handled, then this is a spurious callback -- it should */
+  /* not be possible with the descheduling below (allow it if it is not */
+  /* possible to deschedule.                                            */
 
-   if (disksim->intq != NULL 
-       && (disksim->intq->time + 0.0001) < curtime) 
-   {
-     fprintf (stderr, "external time is ahead of disksim time: %f > %f\n", curtime, disksim->intq->time);
-     exit (1);
-   }
+  if (disksim->intq != NULL && (disksim->intq->time + 0.0001) < curtime)
+  {
+    fprintf(stderr, "external time is ahead of disksim time: %f > %f\n", curtime, disksim->intq->time);
+    exit(1);
+  }
 
-   // fprintf(stderr, "disksim_internal_event: intq->time=%f curtime=%f\n", disksim->intq->time, curtime);
+  // fprintf(stderr, "disksim_internal_event: intq->time=%f curtime=%f\n", disksim->intq->time, curtime);
 
-   /* while next event time is same as now, handle next event */
-   if(disksim->intq != NULL){
-     ASSERT (disksim->intq->time >= simtime);
-   }
+  /* while next event time is same as now, handle next event */
+  if (disksim->intq != NULL)
+  {
+    ASSERT(disksim->intq->time >= simtime);
+  }
 
-   while ((disksim->intq != NULL) 
-	  && (disksim->intq->time <= (curtime + 0.0001))) 
-   {
-       
-     // fprintf (stderr, "handling internal event: type %d\n", disksim->intq->type);
-     
-     disksim_simulate_event(event_count++);
-   }
+  while ((disksim->intq != NULL) && (disksim->intq->time <= (curtime + 0.0001)))
+  {
 
-   if (disksim->intq != NULL) {
-      /* Note: this could be a dangerous operation when employing checkpoint */
-      /* and, specifically, restore -- functions move around when programs   */
-      /* are changed and recompiled...                                       */
+    // fprintf (stderr, "handling internal event: type %d\n", disksim->intq->type);
 
-      iface->sched_fn(disksim_interface_internal_event, 
-		      disksim->intq->time,
-		      iface->ctx);
-   }
+    disksim_simulate_event(event_count++);
+  }
 
-   // fprintf (stderr, "disksim_internal_event done\n");
+  if (disksim->intq != NULL)
+  {
+    /* Note: this could be a dangerous operation when employing checkpoint */
+    /* and, specifically, restore -- functions move around when programs   */
+    /* are changed and recompiled...                                       */
+
+    iface->sched_fn(disksim_interface_internal_event,
+                    disksim->intq->time,
+                    iface->ctx);
+  }
+
+  // fprintf (stderr, "disksim_internal_event done\n");
 }
-
 
 /* This function should be called by the system-level simulation when    */
 /* it wants to issue a request into disksim.  "syssimtime" should be the */
@@ -418,52 +410,52 @@ disksim_interface_internal_event (struct disksim_interface *iface,
 /* "requestdesc" is the system-level simulator's description of the      */
 /* request (device number, block number, length, etc.).                  */
 
-void 
-disksim_interface_request_arrive (struct disksim_interface *iface,
-				  double syssimtime, 
-				  struct disksim_request *requestdesc)
+void disksim_interface_request_arrive(struct disksim_interface *iface,
+                                      double syssimtime,
+                                      struct disksim_request *requestdesc)
 {
-   ioreq_event *new;
+  ioreq_event *new;
 
-   double curtime = syssimtime;
-   disksim = iface->disksim;
+  double curtime = syssimtime;
+  disksim = iface->disksim;
 
-   new = (ioreq_event *) getfromextraq();
+  new = (ioreq_event *)getfromextraq();
 
-   assert (new != NULL);
-   new->type = IO_REQUEST_ARRIVE;
-   new->time = curtime;
-   new->busno = 0;
-   new->devno = requestdesc->devno;
-   new->blkno = requestdesc->blkno;
-   new->flags = requestdesc->flags;
-   new->bcount = requestdesc->bytecount / 512;
-   new->batchno = requestdesc->batchno;
-   new->batch_complete = requestdesc->batch_complete;
-      
-   new->flags |= TIME_CRITICAL;
-   
-   new->cause = 0;
-   new->opid = 0;
-   new->buf = requestdesc;
+  assert(new != NULL);
+  new->type = IO_REQUEST_ARRIVE;
+  new->time = curtime;
+  new->busno = 0;
+  new->devno = requestdesc->devno;
+  new->blkno = requestdesc->blkno;
+  new->flags = requestdesc->flags;
+  new->bcount = requestdesc->bytecount / 512;
+  new->batchno = requestdesc->batchno;
+  new->batch_complete = requestdesc->batch_complete;
 
-   io_map_trace_request (new);
+  new->flags |= TIME_CRITICAL;
 
-   /* issue it into simulator */
-   if (disksim->intq) {
-     iface->desched_fn(0.0, iface->ctx);
-   }
-   addtointq ((event *)new);
+  new->cause = 0;
+  new->opid = 0;
+  new->buf = requestdesc;
 
-   /* while next event time is same as now, handle next event */
-   while ((disksim->intq != NULL) 
-	  && (disksim->intq->time <= (curtime + 0.0001))) 
-   {
-     disksim_simulate_event (event_count++);
-   }
+  io_map_trace_request(new);
 
-   if (disksim->intq) {
-      /* Note: this could be a dangerous operation when employing checkpoint */
+  /* issue it into simulator */
+  if (disksim->intq)
+  {
+    iface->desched_fn(0.0, iface->ctx);
+  }
+  addtointq((event *)new);
+
+  /* while next event time is same as now, handle next event */
+  while ((disksim->intq != NULL) && (disksim->intq->time <= (curtime + 0.0001)))
+  {
+    disksim_simulate_event(event_count++);
+  }
+
+  if (disksim->intq)
+  {
+    /* Note: this could be a dangerous operation when employing checkpoint */
       /* and, specifically, restore -- functions move around when programs   */
       /* are changed and recompiled...                                       */
 

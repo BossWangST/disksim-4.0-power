@@ -82,6 +82,7 @@ typedef void(*disksim_interface_desched_t)(double t, void *ctx);
 struct disksim_interface * 
 disksim_interface_initialize (const char *pfile, 
 			      const char *ofile,
+				  const char *power_config,
 			      disksim_interface_complete_t,
 			      disksim_interface_sched_t,
 			      disksim_interface_desched_t,

@@ -667,6 +667,7 @@ int main(int argc, char **argv) {
 
   ds->iface = disksim_interface_initialize(parv, 
 					   outv,
+             NULL,
 					   cb,
 					   schedule_callback,
 					   deschedule_callback,
